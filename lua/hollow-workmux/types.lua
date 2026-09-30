@@ -1,18 +1,38 @@
----@class AgentPaneKey
----@field backend 'hollow'
----@field instance string
----@field pane_id string
--- TODO: Add missing statuses
+---@meta
 
----@class WorkmuxAgentDetails
----@field pane_key AgentPaneKey
+---@alias WorkmuxAgentStatus "working"|"waiting"|"done"
+
+--- One agent, as projected from a workmux state file
+--- (`$XDG_STATE_HOME/workmux/agents/hollow__<instance>__<pane>.json`,
+--- `AgentState` in workmux's src/state/types.rs) plus live hollow data.
+---@class WorkmuxAgent
+---@field pane_id string hollow pane id (pane_key.pane_id)
+---@field instance string HOLLOW_COMMAND_ADDR of the hollow that owns the pane
 ---@field workdir string
----@field status? "done"|
----@field status_ts number
----@field activity_ts number
----@field pane_title string
----@field command string
----@field updated_ts number
----@field window_name string
----@field session_name string
----@field agent_kind string
+---@field status? WorkmuxAgentStatus
+---@field status_ts? integer unix time of the last status change
+---@field activity_ts? integer unix time the agent entered its activity state
+---@field updated_ts? integer unix time of the last state write
+---@field pane_title? string
+---@field window_name? string tab title when the status was recorded
+---@field session_name? string workspace name when the status was recorded
+---@field agent_kind? string e.g. "claude", "codex"
+---@field command? string foreground command when the status was recorded
+---@field live_pane? HollowPane
+---@field tab_id? integer
+---@field tab_index? integer
+---@field ws_index? integer
+---@field session? string live workspace name
+---@field pane_suffix? string "(n)" when a tab holds several agents
+
+--- Git state of one worktree (workmux's GitStatus, git/types.rs).
+---@class WorkmuxGitStats
+---@field dir string
+---@field branch? string
+---@field project string repository name
+---@field dirty boolean
+---@field rebasing boolean
+---@field added integer committed vs the base branch
+---@field removed integer
+---@field uncommitted_added integer vs HEAD, untracked lines included
+---@field uncommitted_removed integer
