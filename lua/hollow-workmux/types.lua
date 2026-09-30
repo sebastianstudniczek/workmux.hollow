@@ -1,0 +1,18 @@
+---@class AgentPaneKey
+---@field backend 'hollow'
+---@field instance string
+---@field pane_id string
+-- TODO: Add missing statuses
+
+---@class WorkmuxAgentDetails
+---@field pane_key AgentPaneKey
+---@field workdir string
+---@field status? "done"|
+---@field status_ts number
+---@field activity_ts number
+---@field pane_title string
+---@field command string
+---@field updated_ts number
+---@field window_name string
+---@field session_name string
+---@field agent_kind string

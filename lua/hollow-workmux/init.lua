@@ -302,15 +302,15 @@ end
 local function apply_agents(result)
 	local result_list = {}
 
-	for line in result:gmatch("[^\r\n]+") do
-		if line:match("^%s*{") then
-			local ok, data = pcall(hollow.json.decode, line)
-			if ok and type(data) == "table" and data.pane_id and data.pane_id ~= "" then
-				local live = live_cache[data.pane_id]
-				data.live_icon = live and live.icon or nil
-				data.live_ts = live and live.ts or nil
-				result_list[#result_list + 1] = data
-			end
+	---@type boolean, WorkmuxAgentDetails[]
+	local ok, data = pcall(hollow.json.decode, result)
+
+	for _, file in ipairs(data) do
+		if file.pane_key.pane_id and file.pane_key.pane_id ~= "" then
+			local live = live_cache[file.pane_key.pane_id]
+			file.live_icon = live and live.icon or nil
+			file.live_ts = live and live.ts or nil
+			result_list[#result_list + 1] = file
 		end
 	end
 
@@ -320,7 +320,7 @@ local function apply_agents(result)
 		if ta ~= tb then
 			return ta > tb
 		end
-		return a.pane_id < b.pane_id
+		return a.pane_key.pane_id < b.pane_key.pane_id
 	end)
 
 	agents = result_list
@@ -328,53 +328,30 @@ local function apply_agents(result)
 end
 
 local function load_agents()
-	hollow.process
-		.exec({
-			cmd = {
-				"wsl",
-				"-d",
-				"Ubuntu",
-				"--",
-				"bash",
-				"-lc",
-				"jq -s . /home/eddyi0202/.local/state/workmux/agents/hollow__*.json",
-			},
-			timeout_ms = 5000,
-		})
-		:next(function(result)
-			if result.code ~= 0 then
-				print(result.stderr)
-				return
-			end
-
-			print(result.stdout)
-			-- process result.stdout
-		end)
-		:catch(function(err)
-			print("failed:", err)
-		end)
-	-- local ok, stdout, stderr = hollow.term.run_domain_process({
-	-- 	"bash",
-	-- 	"-lc",
-	-- 	[[
-	-- 	set -x
-	-- 	echo "dir=${XDG_STATE_HOME:-$HOME/.local/state}/workmux/agents"
-	--    dire="${XDG_STATE_HOME:-$HOME/.local/state}/workmux/agents"
-	-- 	echo "dire=$dire"
-	-- 	echo "HOME=$HOME"
-	--  ]],
-	-- }, "UbuntuWSL")
-
 	last_load = os.time()
-	local ok, stdout =
-		run_bash('dir="${XDG_STATE_HOME:-$HOME/.local/state}/workmux/agents"; jq -s . "$dir"/hollow__*.json')
-	if not ok then
-		error("Failed to load agent status files: " .. stdout)
-		return
-	end
+
+	local ok, stdout, stderr = hollow.term.run_domain_process({
+		"bash",
+		"-lc",
+		"jq -s . ${XDG_STATE_HOME:-$HOME/.local/state}/workmux/agents/hollow__*.json",
+	}, "UbuntuWSL")
 
 	hollow.log(stdout)
+	hollow.log(stderr)
+	--TODO: Add some comon type
 	apply_agents(stdout)
+	-- :next(function(result)
+	-- 	if result.code ~= 0 then
+	-- 		hollow.log(result.stderr)
+	-- 		return
+	-- 	end
+	--
+	-- 	last_load = os.time()
+	-- 	apply_agents(result.stdout)
+	-- end)
+	-- :catch(function(err)
+	-- 	hollow.log(err)
+	-- end)
 end
 
 -- Sync cursor to the agent matching the given workspace name.
