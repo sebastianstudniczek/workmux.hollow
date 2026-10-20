@@ -1,11 +1,16 @@
--- hollow-workmux.labels: display names for an agent row, ported from workmux's agent_display.rs and
--- template/context.rs: worktree and project names, primary/secondary labels,
--- pane title cleanup and elapsed time.
+-- hollow-workmux.labels
+-- Display names for an agent row, ported from workmux's agent_display.rs
+-- and template/context.rs: worktree and project names, primary/secondary
+-- labels, pane title cleanup and elapsed time.
 
-local cfg = require("hollow-workmux.config")
-local util = require("hollow-workmux.util")
-local CHAR_PATTERN, path_parts, strip_prefix, trim =
-	util.CHAR_PATTERN, util.path_parts, util.strip_prefix, util.trim
+local core = require("hollow-workmux.core")
+local CHAR_PATTERN = core.CHAR_PATTERN
+local cfg = core.cfg
+local path_parts = core.path_parts
+local strip_prefix = core.strip_prefix
+local trim = core.trim
+
+-- ── Formatting (template/context.rs) ─────────────────────────────────────────
 
 -- Time since the last status change: m:ss under an hour, then hours, then days.
 local function format_elapsed(ts)

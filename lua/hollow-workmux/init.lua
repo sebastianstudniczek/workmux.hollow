@@ -13,13 +13,18 @@
 --
 --   ▌ ⠹⠸ feature-auth                    5:23
 --   ▌    workmux              +412 -87 * +12 -3
---   ▌    fix sidebar socket paths on macOS
+--   ▌    fix sidebar socket paths     #139 ✓
 --   ──────────────────────────────────────────
 --
 --   line 1: status icon, primary label (+ "(n)" when a tab holds several
 --           agents), time since the last status change
 --   line 2: secondary label, git diff stats (committed dim, uncommitted bright)
---   line 3: the agent's pane title
+--   line 3: the agent's pane title (its task description), and on the right
+--           the branch's pull request: `#123` coloured by state (draft dim,
+--           open green, merged purple, closed red) and its checks: ✓ passed,
+--           × failed or a spinner while running, with passed/total unless
+--           everything passed. Needs the GitHub CLI (`gh`) logged in inside
+--           the domain.
 --
 -- Compact layout: one line per agent (icon, primary label, elapsed).
 --
@@ -44,6 +49,10 @@
 --                              -- tmux sidebar unless you set one)
 --   agent_icons = {},          -- reserved; not rendered by the default layout
 --   git = true, git_refresh_secs = 5, untracked = true,
+--   pr = true,                 -- pull request number + checks (needs `gh`)
+--   pr_refresh_secs = 60,      -- GitHub is rate limited, so poll slowly
+--   gh = nil,                  -- path to `gh` in the domain; nil = PATH,
+--                              -- then the usual Homebrew locations
 --   height = nil,              -- visible sidebar rows; nil = estimate
 --   colors = {},               -- palette overrides, see C below
 --   keys = true,               -- install the default keybindings below
@@ -55,7 +64,7 @@
 --   <C-A-v>          toggle tiles/compact layout
 --   <C-A-z>          toggle sleeping on the selected agent
 --   <C-A-f>          toggle the current-workspace filter
---   <C-A-r>          reload agents and refresh git stats
+--   <C-A-r>          reload agents and refresh git stats and pull requests
 --
 -- HTP channels (`hollow-cli emit <channel> <json>`):
 --   workmux:status   {"pane_id":"<id>", ...}   -- sent by workmux on status
@@ -67,25 +76,27 @@
 -- HTP query (`hollow-cli get htp <channel> <json>`):
 --   workmux:focus    {"pane_id":"<id>"} → true once the pane is focused
 --
--- Layout: this file is only the entry point. The work lives in the sibling
--- modules (config, state, palette, glyphs, util, labels, status, process,
--- tree, agents, git, layout, diffstat, render, scheduler, nav, events).
+-- Layout: this file is only the entry point; the work lives in the sibling
+-- modules: core (options, state, colours, helpers), labels (display names),
+-- agents (data), view (rendering) and actions (refresh loop, input, events).
 
 local hollow = _G.hollow
 local ui = hollow.ui
 
-local cfg = require("hollow-workmux.config")
-local S = require("hollow-workmux.state")
--- nav's table is the plugin's public API; setup() is added to it below
-local M = require("hollow-workmux.nav")
-local load_agents = require("hollow-workmux.agents").load_agents
-local events = require("hollow-workmux.events")
-local on_htp_sidebar, on_htp_status, on_widget_event =
-	events.on_htp_sidebar, events.on_htp_status, events.on_widget_event
-local apply_palette = require("hollow-workmux.palette").apply_palette
-local render = require("hollow-workmux.render").render
-local tick = require("hollow-workmux.scheduler").tick
-local refresh_panes = require("hollow-workmux.tree").refresh_panes
+local actions = require("hollow-workmux.actions")
+local on_htp_sidebar = actions.on_htp_sidebar
+local on_htp_status = actions.on_htp_status
+local on_widget_event = actions.on_widget_event
+local tick = actions.tick
+local agents = require("hollow-workmux.agents")
+local load_agents, refresh_panes = agents.load_agents, agents.refresh_panes
+local core = require("hollow-workmux.core")
+local S, apply_palette, cfg = core.S, core.apply_palette, core.cfg
+local render = require("hollow-workmux.view").render
+-- the public API table (next, prev, jump, toggle_*, refresh); setup() is added below
+local M = require("hollow-workmux.actions").M
+
+-- ── Setup ─────────────────────────────────────────────────────────────────────
 
 ---@param opts? table see the header comment for the recognised keys
 function M.setup(opts)
